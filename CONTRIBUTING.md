@@ -4,8 +4,8 @@ Thank you for your interest in contributing to opencode-docker! This document pr
 
 ## 🎯 Ways to Contribute
 
-- **🐛 Report Bugs**: Found a bug? [Open an issue](https://github.com/yourusername/opencode-docker/issues)
-- **✨ Suggest Features**: Have an idea? [Start a discussion](https://github.com/yourusername/opencode-docker/discussions)
+- **🐛 Report Bugs**: Found a bug? [Open an issue](https://github.com/requix/opencode-docker/issues)
+- **✨ Suggest Features**: Have an idea? [Start a discussion](https://github.com/requix/opencode-docker/discussions)
 - **📖 Improve Documentation**: Fix typos, clarify instructions, add examples
 - **🔧 Submit Code**: Fix bugs, add features, improve performance
 - **🧪 Test**: Try opencode-docker on different platforms and report findings
@@ -197,7 +197,7 @@ Test these scenarios:
 
 ### Before Reporting
 
-1. Check [existing issues](https://github.com/yourusername/opencode-docker/issues)
+1. Check [existing issues](https://github.com/requix/opencode-docker/issues)
 2. Try with latest version: `./opencode-docker rebuild`
 3. Test on fresh environment if possible
 
@@ -266,9 +266,9 @@ This project adheres to a [Code of Conduct](CODE_OF_CONDUCT.md). By participatin
 
 ## 💬 Getting Help
 
-- **Questions**: [GitHub Discussions](https://github.com/yourusername/opencode-docker/discussions)
+- **Questions**: [GitHub Discussions](https://github.com/requix/opencode-docker/discussions)
 - **Chat**: (TBD - Discord/Slack if community grows)
-- **Issues**: [GitHub Issues](https://github.com/yourusername/opencode-docker/issues)
+- **Issues**: [GitHub Issues](https://github.com/requix/opencode-docker/issues)
 
 ## 📄 License
 

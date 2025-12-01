@@ -65,7 +65,7 @@ Based on the excellent [AgentBox](https://github.com/fletchgqc/agentbox) archite
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/opencode-docker.git
+git clone https://github.com/requix/opencode-docker.git
 cd opencode-docker
 
 # Start OpenCode in current directory
@@ -88,7 +88,7 @@ cd opencode-docker
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/yourusername/opencode-docker.git
+   git clone https://github.com/requix/opencode-docker.git
    cd opencode-docker
    ```
 
@@ -326,7 +326,7 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for det
 
 ```bash
 # Clone the repo
-git clone https://github.com/yourusername/opencode-docker.git
+git clone https://github.com/requix/opencode-docker.git
 cd opencode-docker
 
 # Make changes to Dockerfile or opencode-docker script
@@ -356,8 +356,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🔗 Links
 
-- **Report Issues**: [GitHub Issues](https://github.com/yourusername/opencode-docker/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/opencode-docker/discussions)
+- **Report Issues**: [GitHub Issues](https://github.com/requix/opencode-docker/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/requix/opencode-docker/discussions)
 - **OpenCode AI**: https://opencode.ai
 
 ---
