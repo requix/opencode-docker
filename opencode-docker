@@ -1,0 +1,359 @@
+#!/bin/bash
+# opencode-docker - Dedicated OpenCode AI Container Manager
+
+set -euo pipefail
+
+# Script version
+VERSION="1.0.0"
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Configuration
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DOCKERFILE="$SCRIPT_DIR/Dockerfile"
+ENTRYPOINT="$SCRIPT_DIR/entrypoint.sh"
+IMAGE_NAME="opencode-docker:latest"
+CONFIG_DIR="${OPENCODE_DOCKER_CONFIG_DIR:-$HOME/.opencode-docker}"
+CACHE_DIR="${OPENCODE_DOCKER_CACHE_DIR:-$HOME/.cache/opencode-docker}"
+
+# Usage information
+usage() {
+    cat << EOF
+${GREEN}opencode-docker${NC} - Dedicated OpenCode AI Container Manager v${VERSION}
+
+${BLUE}Usage:${NC}
+    opencode-docker [OPTIONS] [COMMAND]
+
+${BLUE}Commands:${NC}
+    (default)           Start OpenCode AI (interactive)
+    shell              Start bash shell in container
+    zsh                Start zsh shell in container
+    init-ssh           Initialize SSH configuration
+    rebuild            Force rebuild the container image
+    clean              Remove all opencode-docker data
+    version            Show version information
+
+${BLUE}Options:${NC}
+    -d, --add-dir DIR      Mount additional directory (can be used multiple times)
+    -h, --help             Show this help message
+
+${BLUE}Examples:${NC}
+    # Start OpenCode in current directory
+    opencode-docker
+
+    # Open shell for debugging
+    opencode-docker shell
+
+    # Mount additional directories
+    opencode-docker --add-dir ~/other-project
+    opencode-docker --add-dir ~/docs --add-dir ~/scripts
+
+    # Start with custom command
+    opencode-docker opencode --help
+
+${BLUE}Environment Variables:${NC}
+    OPENCODE_DOCKER_CONFIG_DIR    Config directory (default: ~/.opencode-docker)
+    OPENCODE_DOCKER_CACHE_DIR     Cache directory (default: ~/.cache/opencode-docker)
+
+${BLUE}Mounting Custom Directories:${NC}
+    Use --add-dir to mount additional directories into the container.
+    They will be available under /mnt/<directory-name> inside the container.
+
+    Example:
+        opencode-docker --add-dir ~/my-workspace
+        # Available as: /mnt/my-workspace
+
+EOF
+    exit 0
+}
+
+# Print colored message
+print_msg() {
+    local color=$1
+    shift
+    echo -e "${color}$*${NC}"
+}
+
+# Error handling
+error_exit() {
+    print_msg "$RED" "ERROR: $*"
+    exit 1
+}
+
+# Check if Docker is available
+check_docker() {
+    if ! command -v docker &> /dev/null; then
+        error_exit "Docker is not installed or not in PATH"
+    fi
+
+    if ! docker info &> /dev/null; then
+        error_exit "Docker daemon is not running or you don't have permission to access it"
+    fi
+}
+
+# Calculate hash of files for cache invalidation
+calculate_hash() {
+    local hash_input=""
+    [ -f "$DOCKERFILE" ] && hash_input+=$(cat "$DOCKERFILE")
+    [ -f "$ENTRYPOINT" ] && hash_input+=$(cat "$ENTRYPOINT")
+    echo -n "$hash_input" | sha256sum | cut -d' ' -f1 | cut -c1-12
+}
+
+# Check if image needs rebuild
+needs_rebuild() {
+    local current_hash
+    current_hash=$(calculate_hash)
+
+    if ! docker image inspect "$IMAGE_NAME" &>/dev/null; then
+        return 0  # Image doesn't exist, needs build
+    fi
+
+    local image_hash
+    image_hash=$(docker image inspect "$IMAGE_NAME" --format '{{.Config.Labels.build_hash}}' 2>/dev/null || echo "")
+
+    [ "$current_hash" != "$image_hash" ]
+}
+
+# Build Docker image
+build_image() {
+    local force_rebuild=${1:-false}
+
+    if [ "$force_rebuild" = true ] || needs_rebuild; then
+        print_msg "$BLUE" "Building opencode-docker image..."
+
+        local build_hash
+        build_hash=$(calculate_hash)
+
+        docker build \
+            --build-arg CACHEBUST="$(date +%s)" \
+            --label "build_hash=$build_hash" \
+            -t "$IMAGE_NAME" \
+            -f "$DOCKERFILE" \
+            "$SCRIPT_DIR" || error_exit "Failed to build Docker image"
+
+        print_msg "$GREEN" "✓ Image built successfully"
+    else
+        print_msg "$BLUE" "Using existing opencode-docker image"
+    fi
+}
+
+# Validate directory path
+validate_dir() {
+    local dir=$1
+    local label=$2
+
+    # Resolve to absolute path
+    dir=$(realpath -m "$dir" 2>/dev/null || readlink -f "$dir" 2>/dev/null || echo "$dir")
+
+    # Check if directory exists
+    if [ ! -d "$dir" ]; then
+        error_exit "$label directory does not exist: $dir"
+    fi
+
+    # Security checks - prevent mounting dangerous paths
+    case "$dir" in
+        /|/bin|/boot|/dev|/etc|/lib|/lib64|/proc|/root|/sbin|/sys|/usr|/var)
+            error_exit "Cannot mount critical system directory: $dir"
+            ;;
+        /tmp|/var/tmp|/run)
+            print_msg "$YELLOW" "WARNING: Mounting potentially unsafe directory: $dir"
+            ;;
+    esac
+
+    echo "$dir"
+}
+
+# Initialize SSH
+init_ssh() {
+    local ssh_dir="$CONFIG_DIR/ssh"
+    mkdir -p "$ssh_dir"
+    chmod 700 "$ssh_dir"
+
+    if [ ! -f "$ssh_dir/id_ed25519" ]; then
+        print_msg "$BLUE" "Generating SSH key..."
+        ssh-keygen -t ed25519 -f "$ssh_dir/id_ed25519" -N ""
+        print_msg "$GREEN" "✓ SSH key generated at $ssh_dir/id_ed25519.pub"
+        print_msg "$YELLOW" "Add this public key to your Git provider:"
+        cat "$ssh_dir/id_ed25519.pub"
+    else
+        print_msg "$GREEN" "✓ SSH key already exists"
+        cat "$ssh_dir/id_ed25519.pub"
+    fi
+}
+
+# Clean up all data
+clean_all() {
+    print_msg "$YELLOW" "This will remove all opencode-docker data and containers."
+    read -p "Are you sure? (yes/no): " confirm
+
+    if [ "$confirm" = "yes" ]; then
+        print_msg "$BLUE" "Cleaning up..."
+
+        # Remove containers
+        docker ps -a --filter "label=app=opencode-docker" -q | xargs -r docker rm -f
+
+        # Remove volumes
+        docker volume ls --filter "label=app=opencode-docker" -q | xargs -r docker volume rm
+
+        # Remove config and cache
+        rm -rf "$CONFIG_DIR" "$CACHE_DIR"
+
+        print_msg "$GREEN" "✓ Cleanup complete"
+    else
+        print_msg "$YELLOW" "Cleanup cancelled"
+    fi
+}
+
+# Main function to run container
+run_container() {
+    local workspace_dir
+    workspace_dir=$(validate_dir "$(pwd)" "Workspace")
+
+    local container_name
+    container_name="opencode-docker-$(basename "$workspace_dir" | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]-')"
+
+    # Create necessary directories
+    mkdir -p "$CONFIG_DIR/projects/$container_name/history"
+    mkdir -p "$CACHE_DIR/$container_name"/{npm,pip,maven,gradle}
+
+    # Build Docker run command
+    local docker_args=(
+        --rm
+        --interactive
+        --tty
+        --hostname opencode-docker
+        --label "app=opencode-docker"
+        --label "project=$container_name"
+        --volume "$workspace_dir:/workspace:rw"
+        --volume "$CONFIG_DIR/projects/$container_name/history:/home/opencode/.bash_history:rw"
+        --volume "$CACHE_DIR/$container_name/npm:/home/opencode/.npm:rw"
+        --volume "$CACHE_DIR/$container_name/pip:/home/opencode/.cache/pip:rw"
+        --volume "$CACHE_DIR/$container_name/maven:/home/opencode/.m2:rw"
+        --volume "$CACHE_DIR/$container_name/gradle:/home/opencode/.gradle:rw"
+        --volume "opencode-docker-config-$container_name:/home/opencode/.config/opencode:rw"
+    )
+
+    # Add gitconfig if it exists
+    if [ -f "$HOME/.gitconfig" ]; then
+        docker_args+=(--volume "$HOME/.gitconfig:/tmp/.gitconfig:ro")
+    fi
+
+    # SSH Agent Forwarding (for private repositories)
+    if [ -n "${SSH_AUTH_SOCK:-}" ] && [ -S "${SSH_AUTH_SOCK:-}" ]; then
+        docker_args+=(
+            --volume "$SSH_AUTH_SOCK:/ssh-agent:ro"
+            --env "SSH_AUTH_SOCK=/ssh-agent"
+        )
+        print_msg "$GREEN" "✓ SSH agent forwarding enabled"
+    else
+        print_msg "$YELLOW" "⚠ SSH agent not detected (private repos may not work)"
+        print_msg "$YELLOW" "  To enable: eval \$(ssh-agent) && ssh-add"
+    fi
+
+    # OpenCode Configuration Inheritance
+    if [ -d "$HOME/.config/opencode" ]; then
+        docker_args+=(
+            --volume "$HOME/.config/opencode:/tmp/host-opencode-config:ro"
+        )
+        print_msg "$GREEN" "✓ OpenCode configuration will be inherited"
+    fi
+
+    if [ -d "$HOME/.local/share/opencode" ]; then
+        docker_args+=(
+            --volume "$HOME/.local/share/opencode:/tmp/host-opencode-share:ro"
+        )
+    fi
+
+    # Add SSH directory if it exists
+    if [ -d "$CONFIG_DIR/ssh" ]; then
+        docker_args+=(--volume "$CONFIG_DIR/ssh:/home/opencode/.ssh:ro")
+    fi
+
+    # Add additional directories
+    for dir in "${ADDITIONAL_DIRS[@]}"; do
+        local validated_dir
+        validated_dir=$(validate_dir "$dir" "Additional")
+        local mount_name
+        mount_name=$(basename "$validated_dir")
+        docker_args+=(--volume "$validated_dir:/mnt/$mount_name:rw")
+        print_msg "$GREEN" "✓ Mounting directory: $validated_dir → /mnt/$mount_name"
+    done
+
+    # Security Hardening
+    docker_args+=(
+        --cap-drop ALL
+        --cap-add CHOWN
+        --cap-add DAC_OVERRIDE
+        --cap-add FOWNER
+        --cap-add SETGID
+        --cap-add SETUID
+        --security-opt no-new-privileges:true
+    )
+
+    # Run the container
+    print_msg "$BLUE" "Starting opencode-docker..."
+    print_msg "$BLUE" "Project: $container_name"
+    print_msg "$BLUE" "Workspace: $workspace_dir"
+
+    docker run "${docker_args[@]}" "$IMAGE_NAME" "$@"
+}
+
+# Parse command line arguments
+ADDITIONAL_DIRS=()
+COMMAND=()
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            usage
+            ;;
+        -d|--add-dir)
+            ADDITIONAL_DIRS+=("$2")
+            shift 2
+            ;;
+        shell)
+            COMMAND=("/bin/bash")
+            shift
+            ;;
+        zsh)
+            COMMAND=("/bin/zsh")
+            shift
+            ;;
+        init-ssh)
+            init_ssh
+            exit 0
+            ;;
+        rebuild)
+            check_docker
+            build_image true
+            exit 0
+            ;;
+        clean)
+            clean_all
+            exit 0
+            ;;
+        version)
+            echo "opencode-docker v${VERSION}"
+            exit 0
+            ;;
+        *)
+            COMMAND+=("$1")
+            shift
+            ;;
+    esac
+done
+
+# Default command if none specified
+if [ ${#COMMAND[@]} -eq 0 ]; then
+    COMMAND=("opencode")
+fi
+
+# Main execution
+check_docker
+build_image false
+run_container "${COMMAND[@]}"
