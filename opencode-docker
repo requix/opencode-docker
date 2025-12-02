@@ -275,14 +275,16 @@ run_container() {
     fi
 
     # Add additional directories
-    for dir in "${ADDITIONAL_DIRS[@]}"; do
-        local validated_dir
-        validated_dir=$(validate_dir "$dir" "Additional")
-        local mount_name
-        mount_name=$(basename "$validated_dir")
-        docker_args+=(--volume "$validated_dir:/mnt/$mount_name:rw")
-        print_msg "$GREEN" "✓ Mounting directory: $validated_dir → /mnt/$mount_name"
-    done
+    if [ ${#ADDITIONAL_DIRS[@]} -gt 0 ]; then
+        for dir in "${ADDITIONAL_DIRS[@]}"; do
+            local validated_dir
+            validated_dir=$(validate_dir "$dir" "Additional")
+            local mount_name
+            mount_name=$(basename "$validated_dir")
+            docker_args+=(--volume "$validated_dir:/mnt/$mount_name:rw")
+            print_msg "$GREEN" "✓ Mounting directory: $validated_dir → /mnt/$mount_name"
+        done
+    fi
 
     # Security Hardening
     docker_args+=(
