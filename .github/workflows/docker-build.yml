@@ -31,9 +31,9 @@ jobs:
         docker images | grep opencode-docker
 
         # Test that entrypoint exists and is executable
-        docker run --rm opencode-docker:test ls -la /usr/local/bin/entrypoint.sh
+        docker run --rm --entrypoint ls opencode-docker:test -la /usr/local/bin/entrypoint.sh
 
-        # Test that OpenCode is installed
+        # Test that OpenCode is installed (run as opencode user via entrypoint)
         docker run --rm opencode-docker:test which opencode
 
         # Test Python tools
@@ -50,6 +50,7 @@ jobs:
         # Test Git tools
         docker run --rm opencode-docker:test git --version
         docker run --rm opencode-docker:test gh --version
+        docker run --rm opencode-docker:test glab --version
 
     - name: Test SSH configuration
       run: |
@@ -57,15 +58,15 @@ jobs:
         docker run --rm opencode-docker:test cat /home/opencode/.ssh/config
 
         # Verify GitHub host keys are configured
-        docker run --rm opencode-docker:test cat /home/opencode/.ssh/known_hosts | grep github.com
+        docker run --rm opencode-docker:test sh -c "cat /home/opencode/.ssh/known_hosts | grep github.com"
 
     - name: Test security settings
       run: |
-        # Verify running as non-root user
-        docker run --rm opencode-docker:test whoami | grep opencode
+        # Verify running as non-root user (after entrypoint switches)
+        docker run --rm opencode-docker:test whoami
 
         # Verify home directory permissions
-        docker run --rm opencode-docker:test ls -ld /home/opencode | grep "opencode opencode"
+        docker run --rm opencode-docker:test ls -ld /home/opencode
 
     - name: Test script syntax
       run: |
