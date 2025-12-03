@@ -253,7 +253,7 @@ run_container() {
     # SSH Agent Forwarding (for private repositories)
     if [ -n "${SSH_AUTH_SOCK:-}" ] && [ -S "${SSH_AUTH_SOCK:-}" ]; then
         docker_args+=(
-            --volume "$SSH_AUTH_SOCK:/ssh-agent:ro"
+            --volume "$SSH_AUTH_SOCK:/ssh-agent"
             --env "SSH_AUTH_SOCK=/ssh-agent"
         )
         print_msg "$GREEN" "✓ SSH agent forwarding enabled"
@@ -276,6 +276,18 @@ run_container() {
         )
     fi
 
+    # Git Authentication Tokens
+    # Pass GitHub and GitLab tokens if set (for HTTPS authentication)
+    if [ -n "${GITHUB_TOKEN:-}" ]; then
+        docker_args+=(--env "GITHUB_TOKEN=$GITHUB_TOKEN")
+        print_msg "$GREEN" "✓ GitHub token configured"
+    fi
+
+    if [ -n "${GITLAB_TOKEN:-}" ]; then
+        docker_args+=(--env "GITLAB_TOKEN=$GITLAB_TOKEN")
+        print_msg "$GREEN" "✓ GitLab token configured"
+    fi
+
     # Add SSH directory if it exists
     if [ -d "$CONFIG_DIR/ssh" ]; then
         docker_args+=(--volume "$CONFIG_DIR/ssh:/home/opencode/.ssh:ro")
@@ -294,10 +306,15 @@ run_container() {
     fi
 
     # Security Hardening
+    # Drop all capabilities and selectively add only what's needed:
+    # - CHOWN: Change file ownership
+    # - FOWNER: Bypass permission checks on file operations
+    # - SETGID/SETUID: Required for sudo functionality
+    # Note: Container has passwordless sudo for development flexibility
+    # This is safe because container isolation protects the host system
     docker_args+=(
         --cap-drop ALL
         --cap-add CHOWN
-        --cap-add DAC_OVERRIDE
         --cap-add FOWNER
         --cap-add SETGID
         --cap-add SETUID

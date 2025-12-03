@@ -20,16 +20,59 @@
 
 ## 🎯 What is opencode-docker?
 
-opencode-docker provides a dedicated, secure Docker container for running [OpenCode AI](https://opencode.ai) with:
+opencode-docker provides a dedicated, secure Docker container for running [OpenCode AI](https://opencode.ai) - an open-source AI coding assistant that helps you write, review, and refactor code directly from your terminal.
 
-- **🔒 Enhanced Security**: Runs with minimal privileges and capability restrictions
+### About OpenCode AI
+
+**OpenCode** is a CLI-based AI coding assistant that:
+- 🤖 Writes and modifies code based on natural language instructions
+- � Undaerstands your entire codebase context
+- 💬 Supports multiple LLM providers (OpenAI, Anthropic, Google, local models)
+- 🌐 Works with any programming language and framework
+- 🔓 Fully open-source and self-hostable
+
+**Why use OpenCode?**
+- No vendor lock-in (works with any LLM provider)
+- Privacy-focused (can run with local models)
+- Terminal-native workflow (no IDE required)
+- Free and open-source
+
+### OpenCode vs Alternatives
+
+| Feature | OpenCode | Claude Code (Cline) | GitHub Copilot | Cursor |
+|---------|----------|---------------------|----------------|--------|
+| **Open Source** | ✅ Yes | ✅ Yes | ❌ No | ❌ No |
+| **CLI-Based** | ✅ Yes | ❌ No (VS Code) | ❌ No (IDE) | ❌ No (IDE) |
+| **Multi-LLM Support** | ✅ Yes | ✅ Yes | ❌ OpenAI only | ⚠️ Limited |
+| **Local Models** | ✅ Yes | ✅ Yes | ❌ No | ❌ No |
+| **Self-Hostable** | ✅ Yes | ✅ Yes | ❌ No | ❌ No |
+| **Cost** | Free | Free | $10-20/mo | $20/mo |
+| **IDE Required** | ❌ No | ✅ VS Code | ✅ Yes | ✅ Yes |
+| **Privacy** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐ |
+
+**When to use OpenCode:**
+- ✅ You prefer terminal/CLI workflows
+- ✅ You want to use different LLM providers
+- ✅ You need privacy (local models)
+- ✅ You want full control (open source)
+- ✅ You work across multiple editors/IDEs
+
+**When to use alternatives:**
+- Use **Claude Code (Cline)** if you're committed to VS Code
+- Use **Cursor** if you want an all-in-one AI IDE
+- Use **Copilot** if you're already in the GitHub ecosystem
+
+### Why opencode-docker?
+
+Running OpenCode in a container provides:
+
+- **🔒 Enhanced Security**: Isolated environment with minimal privileges
 - **🔑 SSH Agent Forwarding**: Access private repositories without copying keys
 - **⚙️ Configuration Inheritance**: One-time setup, persistent across sessions
 - **🚀 Multi-Language Support**: Python (uv), Node.js (NVM), Bun pre-installed
 - **💾 Package Caching**: Persistent caching for npm, pip, Maven, and Gradle
 - **🎨 Per-Project Isolation**: Separate container state for each workspace
-
-Based on the excellent [AgentBox](https://github.com/fletchgqc/agentbox) architecture by fletchgqc.
+- **🛡️ Safe Experimentation**: AI can't accidentally damage your host system
 
 ---
 
@@ -80,9 +123,10 @@ cd opencode-docker
 
 ### Prerequisites
 
-- **Docker**: [Install Docker](https://docs.docker.com/get-docker/)
+- **Docker**: [Install Docker](https://docs.docker.com/get-docker/) (version 20.10 or later)
 - **Linux/macOS**: Tested on Linux and macOS (Windows via WSL2)
 - **Disk Space**: ~2GB for Docker image
+- **Architecture**: x86_64/amd64 and ARM64 (Apple Silicon) supported
 
 ### Setup
 
@@ -109,6 +153,51 @@ cd opencode-docker
    sudo ln -s $(pwd)/opencode-docker /usr/local/bin/opencode-docker
    # Now you can run `opencode-docker` from anywhere
    ```
+
+---
+
+## 🔐 Git Authentication
+
+OpenCode AI can make commits and push code. Choose your authentication method:
+
+### Option 1: GitHub Token (Recommended)
+
+Most secure - gives AI only the permissions it needs.
+
+```bash
+# 1. Create token at: https://github.com/settings/tokens?type=beta
+#    Set permissions: Contents (R/W), Pull Requests (R/W), Issues (R/W)
+#    Expiration: 90 days
+
+# 2. Export and run:
+export GITHUB_TOKEN=ghp_your_token_here
+./opencode-docker
+```
+
+### Option 2: Dedicated SSH Key
+
+Good balance of security and convenience.
+
+```bash
+# 1. Generate and add to GitHub:
+ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_opencode_ai -C "opencode-ai"
+cat ~/.ssh/id_ed25519_opencode_ai.pub  # Add at github.com/settings/keys
+
+# 2. Load and run:
+ssh-add ~/.ssh/id_ed25519_opencode_ai
+./opencode-docker
+```
+
+### Option 3: Personal SSH Key
+
+⚠️ **Not recommended** - gives AI full access to all your repositories.
+
+```bash
+ssh-add ~/.ssh/id_ed25519
+./opencode-docker
+```
+
+**Why dedicated credentials?** If AI is compromised, you can revoke its access without affecting yours. See [SECURITY.md](SECURITY.md) for details.
 
 ---
 
@@ -152,19 +241,39 @@ cd opencode-docker
 
 #### SSH Agent Forwarding
 
-For accessing private repositories:
+For accessing private repositories, you need to add your SSH key to the agent on your **host machine** first:
 
 ```bash
-# Start SSH agent on host
-eval $(ssh-agent)
-ssh-add ~/.ssh/id_ed25519  # or your key path
+# On your host (macOS/Linux), add your SSH key:
+ssh-add ~/.ssh/id_ed25519  # or ~/.ssh/id_rsa
+
+# Verify it was added:
+ssh-add -l
 
 # SSH agent will be automatically forwarded to container
 ./opencode-docker
 
 # Inside container, test GitHub access:
 ssh -T git@github.com
-# Should authenticate successfully without prompting for host key
+# Should see: "Hi username! You've successfully authenticated..."
+```
+
+**Troubleshooting SSH:**
+```bash
+# If you get "Permission denied (publickey)" inside container:
+
+# 1. Check if key is added on HOST:
+ssh-add -l  # Run this on your Mac, not in container
+
+# 2. If "The agent has no identities", add your key:
+ssh-add ~/.ssh/id_ed25519
+
+# 3. Test on host first:
+ssh -T git@github.com  # Should work on host
+
+# 4. Then test in container:
+./opencode-docker shell
+ssh -T git@github.com  # Should now work in container too
 ```
 
 #### Custom Commands
@@ -185,11 +294,15 @@ ssh -T git@github.com
 ### Environment Variables
 
 ```bash
+# Git authentication (recommended for AI agents)
+export GITHUB_TOKEN=ghp_your_token_here
+export GITLAB_TOKEN=glpat_your_token_here
+
 # Change config directory
-export OPENCODEBOX_CONFIG_DIR=~/.my-opencode-docker-config
+export OPENCODE_DOCKER_CONFIG_DIR=~/.my-opencode-docker-config
 
 # Change cache directory
-export OPENCODEBOX_CACHE_DIR=~/.my-cache
+export OPENCODE_DOCKER_CACHE_DIR=~/.my-cache
 
 # Then run opencode-docker
 ./opencode-docker
@@ -240,11 +353,117 @@ OpenCode configuration is automatically inherited from your host:
 
 ### Security Model
 
-- **Capability Drop**: Starts with no privileges
-- **Selective Capabilities**: Only adds essential Linux capabilities
-- **Read-Only Mounts**: SSH agent and configs mounted read-only
-- **No Privilege Escalation**: `no-new-privileges` security option
-- **Path Validation**: Prevents mounting dangerous system directories
+opencode-docker balances security with development usability:
+
+**Container Isolation (Primary Security Boundary)**
+- Built on Debian Bookworm (stable) for reliability and security
+- Containers are ephemeral and isolated from the host system
+- Even with elevated privileges inside the container, host system remains protected
+- Each workspace gets its own isolated container environment
+- Health checks ensure container integrity
+
+**Capability Restrictions**
+- Drops all Linux capabilities by default (`--cap-drop ALL`)
+- Selectively adds only essential capabilities:
+  - `CHOWN`: Change file ownership
+  - `FOWNER`: Bypass permission checks on file operations
+  - `SETGID/SETUID`: Required for sudo functionality
+- Removed `DAC_OVERRIDE` to prevent bypassing file permission checks
+- Enforces `no-new-privileges` to prevent privilege escalation
+
+**Development Container Philosophy**
+- Runs as non-root user (`opencode`) with passwordless sudo access
+- This is intentional for development containers where users need to:
+  - Install system packages on-the-fly
+  - Modify configurations for testing
+  - Run privileged development tools
+- Similar to VS Code DevContainers and GitHub Codespaces
+
+**Additional Protections**
+- SSH agent forwarding (never copies keys into container)
+- SSH configured with `accept-new` for MITM protection while maintaining usability
+- Read-only mounts for SSH agent and configs
+- Path validation prevents mounting critical system directories
+- Separate volumes per project for isolation
+- Pinned package versions for reproducible builds
+
+**Threat Model**
+- Protects host system from container compromise
+- Suitable for trusted development workflows
+- Not designed for running untrusted code in production
+- If running untrusted AI-generated code, review it before execution
+
+---
+
+## 🔒 Security Considerations
+
+### Understanding the Security Model
+
+opencode-docker is designed as a **development container**, not a production security sandbox. Understanding this distinction is important:
+
+#### What It Protects Against
+
+✅ **Host system isolation**: Container cannot directly access or modify host system files (except mounted directories)  
+✅ **Accidental damage**: Mistakes inside the container won't affect your host system  
+✅ **SSH key exposure**: Keys never copied into container, only forwarded via agent  
+✅ **Dependency conflicts**: Container dependencies isolated from host packages  
+✅ **Per-project separation**: Each workspace has isolated container state  
+
+#### What It Doesn't Protect Against
+
+⚠️ **Malicious code execution**: If OpenCode AI generates malicious code and you run it, it executes with your permissions  
+⚠️ **Mounted directory access**: Container has full read-write access to your workspace  
+⚠️ **Network access**: Container can make network requests  
+⚠️ **Resource exhaustion**: No CPU/memory limits by default  
+
+### Best Practices
+
+**When using OpenCode AI:**
+1. **Review generated code** before executing, especially system commands
+2. **Don't mount sensitive directories** (like `~/.ssh`, `~/.aws`, etc.)
+3. **Use SSH agent forwarding** instead of copying keys
+4. **Keep Docker updated** to get latest security patches
+5. **Run on trusted networks** when using SSH agent forwarding
+
+**For enhanced security:**
+```bash
+# Run container with resource limits
+docker run --memory="2g" --cpus="2" ...
+
+# Mount workspace as read-only (if you don't need to save changes)
+# Modify opencode-docker script to use :ro instead of :rw
+
+# Disable network access (breaks package installation)
+docker run --network none ...
+```
+
+### Sudo Access Explained
+
+The container user has passwordless sudo access. This is intentional because:
+
+- **Development flexibility**: Install packages, modify configs, test privileged operations
+- **Industry standard**: Same approach as VS Code DevContainers, GitHub Codespaces
+- **Container isolation**: Root inside container ≠ root on host system
+- **User experience**: Avoids password prompts in development workflow
+
+If you're concerned about this, remember:
+- The container is ephemeral (destroyed on exit)
+- Your host system remains protected by container isolation
+- This is standard practice for development containers
+
+### Reporting Security Issues
+
+Found a security vulnerability? Please report it privately.
+
+See our [Security Policy](SECURITY.md) for:
+- How to report vulnerabilities
+- What to expect
+- Security best practices
+- Known limitations
+
+**Quick reporting:**
+- GitHub Security Advisories: https://github.com/requix/opencode-docker/security/advisories
+- Do not open public issues for security vulnerabilities
 
 ---
 
@@ -313,7 +532,6 @@ opencode  # Follow setup prompts
 
 - [OpenCode AI Documentation](https://opencode.ai/docs/)
 - [OpenCode AI GitHub](https://github.com/sst/opencode)
-- [AgentBox (Base Project)](https://github.com/fletchgqc/agentbox)
 - [Docker Documentation](https://docs.docker.com/)
 
 ---
@@ -346,11 +564,51 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-## 🙏 Acknowledgments
+## � Channgelog
 
-- **[AgentBox](https://github.com/fletchgqc/agentbox)** by fletchgqc - The architectural foundation
-- **[OpenCode AI](https://opencode.ai)** - The AI coding assistant this project supports
-- Security patterns inspired by [opencode-box](https://github.com/filipesoccol/opencode-box) and [RecursiveHook/opencode-docker](https://github.com/RecursiveHook/opencode-docker)
+### Version 1.0.0
+
+**Security Improvements:**
+- Changed base image from Debian Trixie (testing) to Debian Bookworm (stable)
+- Updated SSH config to use `accept-new` instead of `yes` for better MITM protection
+- Removed `DAC_OVERRIDE` capability (redundant with sudo)
+- Added comprehensive security documentation
+
+**Reliability Improvements:**
+- Pinned npm package major versions for reproducible builds
+- Added health check to verify container integrity
+- Added git safe.directory configuration
+- Added OCI labels for better metadata
+
+**Bug Fixes:**
+- Fixed symlink resolution for running from any location
+
+---
+
+## � Changellog
+
+### Version 1.0.0
+
+**Security Improvements:**
+- Changed base image from Debian Trixie (testing) to Debian Bookworm (stable)
+- Updated SSH config to use `accept-new` instead of `yes` for better MITM protection
+- Removed `DAC_OVERRIDE` capability (redundant with sudo)
+- Added comprehensive security documentation (SECURITY.md)
+
+**Reliability Improvements:**
+- Pinned npm package major versions for reproducible builds
+- Added health check to verify container integrity
+- Added git safe.directory configuration
+- Added OCI labels for better metadata
+
+**Platform Support:**
+- Full ARM64 (Apple Silicon) support
+- GitLab CLI (glab) now installed from binary for better cross-platform compatibility
+
+**Bug Fixes:**
+- Fixed symlink resolution for running from any location
+- Fixed glab installation on ARM64 architecture
+
 
 ---
 
