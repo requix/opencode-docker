@@ -1,7 +1,15 @@
 # opencode-docker - Dedicated OpenCode AI Container
 # Adapted for OpenCode AI with multi-LLM provider support
 
-FROM debian:trixie
+FROM debian:bookworm
+
+# OCI Labels for metadata
+LABEL org.opencontainers.image.title="opencode-docker"
+LABEL org.opencontainers.image.description="Isolated development container for OpenCode AI"
+LABEL org.opencontainers.image.version="1.0.0"
+LABEL org.opencontainers.image.source="https://github.com/requix/opencode-docker"
+LABEL org.opencontainers.image.licenses="MIT"
+LABEL org.opencontainers.image.vendor="opencode-docker"
 
 # Build arguments
 ARG USERNAME=opencode
@@ -18,6 +26,7 @@ ENV LANG=en_US.UTF-8 \
 RUN apt-get update && apt-get install -y \
     locales \
     sudo \
+    gosu \
     git \
     vim \
     nano \
@@ -63,7 +72,7 @@ RUN mkdir -p /home/opencode/.ssh && \
 RUN echo "Host github.com" > /home/opencode/.ssh/config && \
     echo "  HostName github.com" >> /home/opencode/.ssh/config && \
     echo "  User git" >> /home/opencode/.ssh/config && \
-    echo "  StrictHostKeyChecking yes" >> /home/opencode/.ssh/config && \
+    echo "  StrictHostKeyChecking accept-new" >> /home/opencode/.ssh/config && \
     echo "  UserKnownHostsFile /home/opencode/.ssh/known_hosts" >> /home/opencode/.ssh/config && \
     chown opencode:opencode /home/opencode/.ssh/config && \
     chmod 600 /home/opencode/.ssh/config
@@ -108,15 +117,15 @@ RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | b
 
 ENV PATH="$NVM_DIR/versions/node/$(ls $NVM_DIR/versions/node | tail -1)/bin:$PATH"
 
-# Install Node.js development tools
+# Install Node.js development tools with pinned major versions
 RUN . "$NVM_DIR/nvm.sh" \
     && npm install -g \
-    typescript \
-    ts-node \
-    eslint \
-    prettier \
-    yarn \
-    pnpm
+    typescript@5 \
+    ts-node@10 \
+    eslint@9 \
+    prettier@3 \
+    yarn@1 \
+    pnpm@9
 
 # Install Bun (faster alternative to npm)
 RUN curl -fsSL https://bun.sh/install | bash \
@@ -128,17 +137,24 @@ RUN curl -fsSL https://bun.sh/install | bash \
 ENV BUN_INSTALL="/home/$USERNAME/.bun"
 ENV PATH="$BUN_INSTALL/bin:$PATH"
 
-# Install GitHub and GitLab CLI tools
+# Install GitHub CLI
 USER root
 RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
     && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
-    && curl -fsSL https://packages.gitlab.com/runner/gitlab-runner/gpgkey | gpg --dearmor -o /usr/share/keyrings/gitlab-runner-archive-keyring.gpg \
-    && echo "deb [signed-by=/usr/share/keyrings/gitlab-runner-archive-keyring.gpg] https://packages.gitlab.com/runner/gitlab-runner/debian/ bookworm main" | tee /etc/apt/sources.list.d/gitlab-runner.list > /dev/null \
     && apt-get update \
-    && apt-get install -y gh glab \
+    && apt-get install -y gh \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# Install GitLab CLI (glab) - install from binary for better ARM64 support
+RUN GLAB_VERSION=$(curl -s https://api.github.com/repos/profclems/glab/releases/latest | grep '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/') \
+    && ARCH=$(dpkg --print-architecture) \
+    && curl -fsSL "https://github.com/profclems/glab/releases/download/v${GLAB_VERSION}/glab_${GLAB_VERSION}_Linux_${ARCH}.tar.gz" -o /tmp/glab.tar.gz \
+    && tar -xzf /tmp/glab.tar.gz -C /tmp \
+    && mv /tmp/bin/glab /usr/local/bin/glab \
+    && chmod +x /usr/local/bin/glab \
+    && rm -rf /tmp/glab.tar.gz /tmp/bin
 
 USER $USERNAME
 
@@ -147,7 +163,8 @@ RUN echo "set -g mouse on" >> ~/.tmux.conf \
     && echo "set -g default-terminal \"screen-256color\"" >> ~/.tmux.conf
 
 # Configure git
-RUN git config --global init.defaultBranch main
+RUN git config --global init.defaultBranch main \
+    && git config --global --add safe.directory '*'
 
 # Set up workspace directory
 RUN mkdir -p /home/$USERNAME/workspace
@@ -164,6 +181,10 @@ RUN . "$NVM_DIR/nvm.sh" \
 # Verify OpenCode installation
 RUN which opencode && opencode --version || echo "OpenCode installed successfully"
 
+# Health check to verify container is working
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD opencode --version > /dev/null 2>&1 || exit 1
+
 # Set working directory
 WORKDIR /workspace
 
@@ -171,7 +192,7 @@ WORKDIR /workspace
 USER root
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod 755 /usr/local/bin/entrypoint.sh
-USER $USERNAME
 
+# Stay as root for the entrypoint (it will switch to opencode user)
 ENTRYPOINT ["/bin/bash", "/usr/local/bin/entrypoint.sh"]
 CMD ["opencode"]
