@@ -37,43 +37,6 @@ opencode-docker provides a dedicated, secure Docker container for running [OpenC
 - Terminal-native workflow (no IDE required)
 - Free and open-source
 
-### OpenCode vs Alternatives
-
-| Feature | OpenCode | Claude Code (Cline) | GitHub Copilot | Cursor |
-|---------|----------|---------------------|----------------|--------|
-| **Open Source** | ✅ Yes | ✅ Yes | ❌ No | ❌ No |
-| **CLI-Based** | ✅ Yes | ❌ No (VS Code) | ❌ No (IDE) | ❌ No (IDE) |
-| **Multi-LLM Support** | ✅ Yes | ✅ Yes | ❌ OpenAI only | ⚠️ Limited |
-| **Local Models** | ✅ Yes | ✅ Yes | ❌ No | ❌ No |
-| **Self-Hostable** | ✅ Yes | ✅ Yes | ❌ No | ❌ No |
-| **Cost** | Free | Free | $10-20/mo | $20/mo |
-| **IDE Required** | ❌ No | ✅ VS Code | ✅ Yes | ✅ Yes |
-| **Privacy** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐ |
-
-**When to use OpenCode:**
-- ✅ You prefer terminal/CLI workflows
-- ✅ You want to use different LLM providers
-- ✅ You need privacy (local models)
-- ✅ You want full control (open source)
-- ✅ You work across multiple editors/IDEs
-
-**When to use alternatives:**
-- Use **Claude Code (Cline)** if you're committed to VS Code
-- Use **Cursor** if you want an all-in-one AI IDE
-- Use **Copilot** if you're already in the GitHub ecosystem
-
-### Why opencode-docker?
-
-Running OpenCode in a container provides:
-
-- **🔒 Enhanced Security**: Isolated environment with minimal privileges
-- **🔑 SSH Agent Forwarding**: Access private repositories without copying keys
-- **⚙️ Configuration Inheritance**: One-time setup, persistent across sessions
-- **🚀 Multi-Language Support**: Python (uv), Node.js (NVM), Bun pre-installed
-- **💾 Package Caching**: Persistent caching for npm, pip, Maven, and Gradle
-- **🎨 Per-Project Isolation**: Separate container state for each workspace
-- **🛡️ Safe Experimentation**: AI can't accidentally damage your host system
-
 ---
 
 ## ✨ Features
@@ -327,18 +290,18 @@ OpenCode configuration is automatically inherited from your host:
 ┌─────────────────────────────────────────┐
 │           Host System                   │
 │                                         │
-│  ┌───────────────────────────────────┐ │
-│  │  opencode-docker Container            │ │
-│  │                                   │ │
-│  │  ┌─────────────────────────────┐ │ │
-│  │  │  OpenCode AI                │ │ │
-│  │  │  (Python, Node.js, Bun)     │ │ │
-│  │  └─────────────────────────────┘ │ │
-│  │                                   │ │
-│  │  /workspace  ← Your Project      │ │
-│  │  /mnt/*      ← Custom Dirs       │ │
-│  │                                   │ │
-│  └───────────────────────────────────┘ │
+│  ┌───────────────────────────────────┐  │
+│  │  opencode-docker Container        │  │
+│  │                                   │  │
+│  │  ┌─────────────────────────────┐  │  │
+│  │  │  OpenCode AI                │  │  │
+│  │  │  (Python, Node.js, Bun)     │  │  │
+│  │  └─────────────────────────────┘  │  │
+│  │                                   │  │
+│  │  /workspace  ← Your Project       │  │
+│  │  /mnt/*      ← Custom Dirs        │  │
+│  │                                   │  │
+│  └───────────────────────────────────┘  │
 │         ↑              ↑                │
 │    SSH Agent    Config Files            │
 └─────────────────────────────────────────┘
@@ -467,19 +430,6 @@ See our [Security Policy](SECURITY.md) for:
 
 ---
 
-## 🆚 Comparison with Alternatives
-
-| Feature | opencode-docker | Native OpenCode | Docker Run | DevContainer |
-|---------|-------------|----------------|------------|--------------|
-| **One-command launch** | ✅ | ✅ | ❌ | ❌ |
-| **SSH agent forwarding** | ✅ | N/A | ⚠️ Manual | ⚠️ Manual |
-| **Security hardening** | ✅ | N/A | ❌ | ❌ |
-| **Config persistence** | ✅ | ✅ | ❌ | ⚠️ Manual |
-| **Per-project isolation** | ✅ | ❌ | ⚠️ Manual | ✅ |
-| **Package caching** | ✅ | ✅ | ❌ | ⚠️ Manual |
-| **Works without IDE** | ✅ | ✅ | ✅ | ❌ |
-
----
 
 ## 🛠️ Troubleshooting
 
