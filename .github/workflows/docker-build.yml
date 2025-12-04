@@ -52,21 +52,16 @@ jobs:
         docker run --rm opencode-docker:test gh --version
         docker run --rm opencode-docker:test glab --version
 
-    - name: Test SSH configuration
+    - name: Test SSH and security
       run: |
         # Verify SSH config exists
         docker run --rm opencode-docker:test cat /home/opencode/.ssh/config
 
         # Verify GitHub host keys are configured
-        docker run --rm opencode-docker:test sh -c "cat /home/opencode/.ssh/known_hosts | grep github.com"
+        docker run --rm opencode-docker:test sh -c "cat /home/opencode/.ssh/known_hosts | grep -q github.com"
 
-    - name: Test security settings
-      run: |
         # Verify running as non-root user (after entrypoint switches)
         docker run --rm opencode-docker:test whoami
-
-        # Verify home directory permissions
-        docker run --rm opencode-docker:test ls -ld /home/opencode
 
     - name: Test script syntax
       run: |

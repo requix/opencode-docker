@@ -147,14 +147,12 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | d
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Install GitLab CLI (glab) - install from binary for better ARM64 support
-RUN GLAB_VERSION=$(curl -s https://api.github.com/repos/profclems/glab/releases/latest | grep '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/') \
+# Install GitLab CLI (glab) - using Debian package for reliability
+RUN GLAB_VERSION="1.22.0" \
     && ARCH=$(dpkg --print-architecture) \
-    && curl -fsSL "https://github.com/profclems/glab/releases/download/v${GLAB_VERSION}/glab_${GLAB_VERSION}_Linux_${ARCH}.tar.gz" -o /tmp/glab.tar.gz \
-    && tar -xzf /tmp/glab.tar.gz -C /tmp \
-    && mv /tmp/bin/glab /usr/local/bin/glab \
-    && chmod +x /usr/local/bin/glab \
-    && rm -rf /tmp/glab.tar.gz /tmp/bin
+    && curl -fsSL "https://github.com/profclems/glab/releases/download/v${GLAB_VERSION}/glab_${GLAB_VERSION}_Linux_${ARCH}.deb" -o /tmp/glab.deb \
+    && dpkg -i /tmp/glab.deb \
+    && rm -f /tmp/glab.deb
 
 USER $USERNAME
 
