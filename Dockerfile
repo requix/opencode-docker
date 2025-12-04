@@ -149,8 +149,15 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | d
 
 # Install GitLab CLI (glab) - using Debian package for reliability
 RUN GLAB_VERSION="1.22.0" \
-    && ARCH=$(dpkg --print-architecture) \
-    && curl -fsSL "https://github.com/profclems/glab/releases/download/v${GLAB_VERSION}/glab_${GLAB_VERSION}_Linux_${ARCH}.deb" -o /tmp/glab.deb \
+    && DPKG_ARCH=$(dpkg --print-architecture) \
+    && case "$DPKG_ARCH" in \
+        amd64) GLAB_ARCH="x86_64" ;; \
+        arm64) GLAB_ARCH="arm64" ;; \
+        armhf) GLAB_ARCH="arm" ;; \
+        i386) GLAB_ARCH="i386" ;; \
+        *) echo "Unsupported architecture: $DPKG_ARCH" && exit 1 ;; \
+    esac \
+    && curl -fsSL "https://github.com/profclems/glab/releases/download/v${GLAB_VERSION}/glab_${GLAB_VERSION}_Linux_${GLAB_ARCH}.deb" -o /tmp/glab.deb \
     && dpkg -i /tmp/glab.deb \
     && rm -f /tmp/glab.deb
 
